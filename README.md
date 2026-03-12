@@ -15,7 +15,9 @@ I'm learning to build AI applications and agents without traditional coding. Thi
 
 ### Coming Soon!
 I'm currently building and will be adding projects in these categories:
-...
+- cyber
+- daily productivity
+- financial planning
 
 ## 🛠️ Tools & Technologies
 

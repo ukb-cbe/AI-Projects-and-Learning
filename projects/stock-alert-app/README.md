@@ -1,6 +1,6 @@
-# NSE Stock Alert — WhatsApp
+# NSE Stock Alert — Email
 
-Get hourly (or scheduled) WhatsApp alerts for NSE stock prices. Fully configurable via a local web UI.
+Get hourly (or scheduled) email alerts for NSE stock prices. Fully configurable via a local web UI.
 
 ## Quick Start
 
@@ -11,12 +11,14 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Set up Twilio WhatsApp Sandbox
-1. Create a free account at [twilio.com](https://www.twilio.com)
-2. Go to **Messaging → Try it out → Send a WhatsApp message**
-3. Follow the instructions to join the sandbox:
-   send `join <your-keyword>` from your WhatsApp to **+1 415 523 8886**
-4. Copy your **Account SID** and **Auth Token** from the Twilio console
+### 2. Set up Gmail smtp
+SMTP credentials for sending alert emails
+# Gmail: use an App Password (not your regular password)
+# Generate one at: https://myaccount.google.com/apppasswords
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
 
 ### 3. Configure environment
 ```bash
