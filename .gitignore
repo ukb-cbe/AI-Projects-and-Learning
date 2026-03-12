@@ -1,0 +1,30 @@
+# Python
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.egg-info/
+**/dist-info/
+
+# Node / React
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Data / DB files (local only, not for version control)
+**/*.db
+**/*.sqlite
+**/data/*.json
+
+# Environment & secrets
+**/.env
+**/.env.local
+**/.env.*.local
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IDEs
+.vscode/
+.idea/

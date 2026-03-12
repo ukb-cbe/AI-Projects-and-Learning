@@ -1,4 +1,5 @@
 import os
+import re
 import json
 
 from flask import Flask, jsonify, render_template, request
@@ -10,7 +11,16 @@ import scheduler as sched
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key")
+_secret_key = os.environ.get("FLASK_SECRET_KEY")
+if not _secret_key:
+    print("[app] WARNING: FLASK_SECRET_KEY not set — using insecure default. Set it in your .env file.")
+    _secret_key = "dev-secret-key"
+app.secret_key = _secret_key
+
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+def _is_valid_email(email: str) -> bool:
+    return bool(_EMAIL_RE.match(email))
 
 # Load NSE symbol list once at startup
 _NSE_SYMBOLS_PATH = os.path.join(os.path.dirname(__file__), "nse_symbols.json")
@@ -99,6 +109,8 @@ def save_settings():
     data = request.get_json()
 
     email = data.get("email_to", "").strip()
+    if email and not _is_valid_email(email):
+        return jsonify({"error": "Invalid email address"}), 400
 
     times = data.get("specific_times", [])
     # Accept comma-separated string or list

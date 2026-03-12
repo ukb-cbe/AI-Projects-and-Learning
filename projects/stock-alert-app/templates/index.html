@@ -136,7 +136,7 @@
                 <td class="text-center">
                   <button
                     class="btn btn-sm btn-outline-danger"
-                    onclick="removeStock('{{ s.symbol }}', {{ s.id }})"
+                    onclick="removeStock({{ s.symbol|tojson }}, {{ s.id }})"
                   >✕</button>
                 </td>
               </tr>
@@ -308,11 +308,17 @@ async function doSearch(q) {
   const res = await fetch('/api/search?q=' + encodeURIComponent(q));
   const items = await res.json();
   if (!items.length) { searchResults.style.display = 'none'; return; }
-  searchResults.innerHTML = items.map(s =>
-    `<div class="search-item" onmousedown="addStock('${s.symbol}','${escHtml(s.name)}')">
-       <span class="sym">${s.symbol}</span> &nbsp; ${escHtml(s.name)}
-     </div>`
-  ).join('');
+  searchResults.replaceChildren(...items.map(s => {
+    const div = document.createElement('div');
+    div.className = 'search-item';
+    const sym = document.createElement('span');
+    sym.className = 'sym';
+    sym.textContent = s.symbol;
+    div.appendChild(sym);
+    div.append('\u00a0 ', s.name);
+    div.addEventListener('mousedown', () => addStock(s.symbol, s.name));
+    return div;
+  }));
   searchResults.style.display = 'block';
 }
 
@@ -359,22 +365,39 @@ async function reloadStocks() {
     tbody.innerHTML = '<tr id="empty-row"><td colspan="3" class="text-center text-muted py-4">No stocks added yet. Search above to add some.</td></tr>';
     return;
   }
-  tbody.innerHTML = stocks.map(s => `
-    <tr id="row-${s.id}" class="${s.active ? '' : 'paused-row'}">
-      <td>
-        <div class="fw-semibold">${escHtml(s.display_name)}</div>
-        <small class="text-muted">${s.symbol}</small>
-      </td>
-      <td class="text-center">
-        <button class="btn btn-sm ${s.active ? 'btn-success' : 'btn-outline-secondary'}"
-          onclick="toggleStock(${s.id}, this)">
-          ${s.active ? '● On' : '○ Off'}
-        </button>
-      </td>
-      <td class="text-center">
-        <button class="btn btn-sm btn-outline-danger" onclick="removeStock('${s.symbol}', ${s.id})">✕</button>
-      </td>
-    </tr>`).join('');
+  tbody.replaceChildren(...stocks.map(s => {
+    const tr = document.createElement('tr');
+    tr.id = `row-${s.id}`;
+    if (!s.active) tr.className = 'paused-row';
+
+    const nameTd = document.createElement('td');
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'fw-semibold';
+    nameDiv.textContent = s.display_name;
+    const symSmall = document.createElement('small');
+    symSmall.className = 'text-muted';
+    symSmall.textContent = s.symbol;
+    nameTd.append(nameDiv, symSmall);
+
+    const toggleTd = document.createElement('td');
+    toggleTd.className = 'text-center';
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = `btn btn-sm ${s.active ? 'btn-success' : 'btn-outline-secondary'}`;
+    toggleBtn.textContent = s.active ? '● On' : '○ Off';
+    toggleBtn.addEventListener('click', function() { toggleStock(s.id, this); });
+    toggleTd.appendChild(toggleBtn);
+
+    const removeTd = document.createElement('td');
+    removeTd.className = 'text-center';
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn btn-sm btn-outline-danger';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => removeStock(s.symbol, s.id));
+    removeTd.appendChild(removeBtn);
+
+    tr.append(nameTd, toggleTd, removeTd);
+    return tr;
+  }));
 }
 
 // ── Send now ──────────────────────────────────────────
