@@ -129,6 +129,22 @@ def get_articles(
     return articles
 
 
+@app.get("/api/article-content")
+def get_article_content(url: str):
+    """
+    Fetch and extract the full article body from any URL.
+    Returns {"html": str} with clean, safe article HTML.
+    """
+    if not url:
+        raise HTTPException(400, "url parameter is required.")
+    try:
+        return fetcher.extract_article_content(url)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Extraction failed: {e}")
+
+
 @app.post("/api/feeds/{feed_id}/refresh")
 def refresh_feed(feed_id: str):
     feed = storage.get_feed(feed_id)

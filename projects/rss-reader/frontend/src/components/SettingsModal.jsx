@@ -23,19 +23,23 @@ export default function SettingsModal({ settings, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 420 }}>
+      <div className="modal" style={{ maxWidth: 440 }}>
         <div className="modal-header">
-          <div className="modal-title">⚙️ Settings</div>
+          <div>
+            <div className="modal-title">Settings</div>
+            <div className="modal-subtitle">Configure your reading experience</div>
+          </div>
           <button className="btn-icon" onClick={onClose}>✕</button>
         </div>
+
         <div className="modal-body">
           <div className="settings-row">
             <div>
               <div className="settings-label">Auto-refresh interval</div>
-              <div className="settings-desc">How often to fetch new articles (0 = manual only)</div>
+              <div className="settings-desc">How often new articles are fetched (0 = manual only)</div>
             </div>
             <select
-              className="filter-select"
+              className="settings-select"
               value={interval}
               onChange={e => setInterval(Number(e.target.value))}
             >
@@ -50,10 +54,10 @@ export default function SettingsModal({ settings, onClose, onSaved }) {
           <div className="settings-row">
             <div>
               <div className="settings-label">Max articles per feed</div>
-              <div className="settings-desc">Limits how many articles are fetched per feed</div>
+              <div className="settings-desc">Limits how many articles are loaded per feed</div>
             </div>
             <select
-              className="filter-select"
+              className="settings-select"
               value={maxArticles}
               onChange={e => setMaxArticles(Number(e.target.value))}
             >
@@ -63,10 +67,11 @@ export default function SettingsModal({ settings, onClose, onSaved }) {
             </select>
           </div>
         </div>
+
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving…' : 'Save Settings'}
           </button>
         </div>
       </div>

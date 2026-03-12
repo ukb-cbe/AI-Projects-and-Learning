@@ -4,9 +4,9 @@ import { saveFilter, removeFilter } from '../api'
 
 const DATE_OPTIONS = [
   { label: 'Any time', value: null },
-  { label: 'Today', value: 0 },
-  { label: 'This week', value: 6 },
-  { label: 'This month', value: 29 },
+  { label: 'Today',     value: 0  },
+  { label: 'This week', value: 6  },
+  { label: 'This month',value: 29 },
 ]
 
 function sinceDate(daysAgo) {
@@ -31,7 +31,7 @@ export default function FilterBar({ filters, onFiltersChange, savedFilters, onSa
         name: saveName.trim(),
         include_kw: filters.keyword || '',
         exclude_kw: '',
-        feed_ids: filters.feedId ? [filters.feedId] : [],
+        feed_ids: [],
       })
       toast.success('Filter saved!')
       onSavedFiltersChange()
@@ -53,11 +53,7 @@ export default function FilterBar({ filters, onFiltersChange, savedFilters, onSa
   }
 
   function applyPreset(preset) {
-    onFiltersChange({
-      ...filters,
-      keyword: preset.include_kw || '',
-      feedId: preset.feed_ids?.[0] || null,
-    })
+    onFiltersChange({ ...filters, keyword: preset.include_kw || '' })
   }
 
   const hasActiveFilters = filters.keyword || filters.unreadOnly || filters.favoritesOnly || filters.since
@@ -65,75 +61,67 @@ export default function FilterBar({ filters, onFiltersChange, savedFilters, onSa
   return (
     <>
       <div className="filter-bar">
-        {/* Keyword search */}
-        <input
-          className="filter-input"
-          type="search"
-          placeholder="🔍 Search articles…"
-          value={filters.keyword}
-          onChange={e => setFilter('keyword', e.target.value)}
-        />
+        {/* Search */}
+        <div className="filter-search-wrap">
+          <span className="filter-search-icon">⌕</span>
+          <input
+            className="filter-input"
+            type="search"
+            placeholder="Search articles…"
+            value={filters.keyword}
+            onChange={e => setFilter('keyword', e.target.value)}
+          />
+        </div>
 
         <div className="filter-divider" />
 
-        {/* Date filter */}
+        {/* Date */}
         <select
           className="filter-select"
           value={filters.sinceDays ?? ''}
           onChange={e => {
             const val = e.target.value === '' ? null : Number(e.target.value)
-            setFilter('sinceDays', val)
-            setFilter('since', sinceDate(val))
+            onFiltersChange({ ...filters, sinceDays: val, since: sinceDate(val) })
           }}
         >
           {DATE_OPTIONS.map(o => (
-            <option key={String(o.value)} value={o.value ?? ''}>
-              {o.label}
-            </option>
+            <option key={String(o.value)} value={o.value ?? ''}>{o.label}</option>
           ))}
         </select>
 
         <div className="filter-divider" />
 
-        {/* Toggle buttons */}
+        {/* Toggles */}
         <button
           className={`filter-toggle${filters.unreadOnly ? ' active' : ''}`}
           onClick={() => setFilter('unreadOnly', !filters.unreadOnly)}
-          title="Show only unread articles"
         >
           Unread
         </button>
         <button
           className={`filter-toggle${filters.favoritesOnly ? ' active' : ''}`}
           onClick={() => setFilter('favoritesOnly', !filters.favoritesOnly)}
-          title="Show only starred articles"
         >
-          ⭐ Favorites
+          ⭐ Saved
         </button>
 
-        {/* Save current filter */}
+        {/* Save filter */}
         {hasActiveFilters && (
-          <button className="filter-toggle" onClick={() => setShowSaveModal(true)} title="Save this filter">
-            💾 Save
+          <button className="filter-toggle" onClick={() => setShowSaveModal(true)}>
+            + Save View
           </button>
         )}
 
-        {/* Saved filter presets */}
+        {/* Saved presets */}
         {savedFilters.length > 0 && <div className="filter-divider" />}
         {savedFilters.map(f => (
-          <span key={f.id} className="filter-pill" onClick={() => applyPreset(f)} title="Apply filter">
+          <span key={f.id} className="filter-pill" onClick={() => applyPreset(f)}>
             {f.name}
-            <span
-              style={{ marginLeft: 2, opacity: 0.6, fontSize: '0.7rem' }}
-              onClick={e => handleRemoveSaved(e, f.id)}
-              title="Delete filter"
-            >
-              ✕
-            </span>
+            <span className="pill-x" onClick={e => handleRemoveSaved(e, f.id)}>✕</span>
           </span>
         ))}
 
-        {/* Clear all */}
+        {/* Clear */}
         {hasActiveFilters && (
           <>
             <div className="filter-divider" />
@@ -147,19 +135,22 @@ export default function FilterBar({ filters, onFiltersChange, savedFilters, onSa
         )}
       </div>
 
-      {/* Save filter mini-modal */}
+      {/* Save filter modal */}
       {showSaveModal && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowSaveModal(false)}>
-          <div className="modal" style={{ maxWidth: 360 }}>
+          <div className="modal" style={{ maxWidth: 380 }}>
             <div className="modal-header">
-              <div className="modal-title">Save Filter</div>
+              <div>
+                <div className="modal-title">Save View</div>
+                <div className="modal-subtitle">Name this filter preset</div>
+              </div>
               <button className="btn-icon" onClick={() => setShowSaveModal(false)}>✕</button>
             </div>
             <div className="modal-body">
               <input
                 autoFocus
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: '0.88rem' }}
-                placeholder="Filter name (e.g. Morning Tech)"
+                className="input"
+                placeholder="e.g. Morning Tech, Security News…"
                 value={saveName}
                 onChange={e => setSaveName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSaveFilter()}
@@ -167,7 +158,9 @@ export default function FilterBar({ filters, onFiltersChange, savedFilters, onSa
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowSaveModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveFilter} disabled={!saveName.trim()}>Save</button>
+              <button className="btn btn-primary" onClick={handleSaveFilter} disabled={!saveName.trim()}>
+                Save View
+              </button>
             </div>
           </div>
         </div>

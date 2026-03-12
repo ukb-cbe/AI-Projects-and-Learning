@@ -1,16 +1,16 @@
-# Python
+# Python backend
 backend/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/*.pyc
-backend/*.pyo
-backend/data/
+backend/.env
+backend/data/*.json
 
-# Node / React
+# Node / frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-# Misc
+# OS
 .DS_Store
-*.env
+Thumbs.db

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { getFeeds, getArticles, getSettings, getFilters } from './api'
 import { readState } from './utils'
@@ -6,6 +6,7 @@ import { readState } from './utils'
 import Sidebar from './components/Sidebar'
 import FilterBar from './components/FilterBar'
 import ArticleList from './components/ArticleList'
+import ReadingPane from './components/ReadingPane'
 import OnboardingModal from './components/OnboardingModal'
 import SettingsModal from './components/SettingsModal'
 
@@ -17,23 +18,73 @@ const DEFAULT_FILTERS = {
   sinceDays: null,
 }
 
+const SIDEBAR_DEFAULT  = 244
+const READING_DEFAULT  = 400
+const SIDEBAR_MIN      = 160
+const SIDEBAR_MAX      = 420
+const READING_MIN      = 280
+const READING_MAX      = 600
+
 export default function App() {
-  const [feeds, setFeeds] = useState([])
-  const [articles, setArticles] = useState([])
-  const [settings, setSettings] = useState(null)
+  const [feeds, setFeeds]               = useState([])
+  const [articles, setArticles]         = useState([])
+  const [settings, setSettings]         = useState(null)
   const [savedFilters, setSavedFilters] = useState([])
   const [selectedFeedId, setSelectedFeedId] = useState('all')
-  const [filters, setFilters] = useState(DEFAULT_FILTERS)
-  const [loading, setLoading] = useState(false)
+  const [filters, setFilters]           = useState(DEFAULT_FILTERS)
+  const [loading, setLoading]           = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
-  const [, forceUpdate] = useState(0)   // for read/fav re-renders
+  const [selectedArticle, setSelectedArticle] = useState(null)
+  const [, forceUpdate]                 = useState(0)
 
+  // ── Theme ────────────────────────────────────────────────────────────────
+  const [theme, setTheme] = useState(() => localStorage.getItem('fl-theme') || 'dark')
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('fl-theme', theme)
+  }, [theme])
+  function toggleTheme() {
+    setTheme(t => t === 'dark' ? 'light' : 'dark')
+  }
+
+  // ── Resizable panes ──────────────────────────────────────────────────────
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT)
+  const [readingWidth, setReadingWidth] = useState(READING_DEFAULT)
+  const [draggingHandle, setDraggingHandle] = useState(null) // 'sidebar' | 'reading' | null
+
+  function startResize(e, type) {
+    e.preventDefault()
+    const startX      = e.clientX
+    const startSidebar = sidebarWidth
+    const startReading = readingWidth
+    setDraggingHandle(type)
+
+    function onMove(e) {
+      const delta = e.clientX - startX
+      if (type === 'sidebar') {
+        setSidebarWidth(Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startSidebar + delta)))
+      } else {
+        setReadingWidth(Math.max(READING_MIN, Math.min(READING_MAX, startReading - delta)))
+      }
+    }
+    function onUp() {
+      setDraggingHandle(null)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // ── Data ─────────────────────────────────────────────────────────────────
   const refreshTimerRef = useRef(null)
   const keywordTimerRef = useRef(null)
-
-  // ── Initial load ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     async function init() {
@@ -48,8 +99,6 @@ export default function App() {
     init()
     return () => clearInterval(refreshTimerRef.current)
   }, [])
-
-  // ── Data loading ──────────────────────────────────────────────────────────
 
   async function loadFeeds() {
     const f = await getFeeds()
@@ -67,7 +116,7 @@ export default function App() {
       const data = await getArticles(params)
       setArticles(data)
       setLastRefreshed(new Date())
-    } catch (e) {
+    } catch {
       toast.error('Failed to load articles.')
     } finally {
       setLoading(false)
@@ -91,18 +140,15 @@ export default function App() {
     }
   }
 
-  // ── Feed selection ────────────────────────────────────────────────────────
-
   function handleSelectFeed(feedId) {
     setSelectedFeedId(feedId)
+    setSelectedArticle(null)
     loadArticles({ feedId, filters })
   }
 
-  // ── Filters ───────────────────────────────────────────────────────────────
-
   function handleFiltersChange(next) {
     setFilters(next)
-    // Debounce keyword changes, apply others immediately
+    setSelectedArticle(null)
     clearTimeout(keywordTimerRef.current)
     if (next.keyword !== filters.keyword) {
       keywordTimerRef.current = setTimeout(() => {
@@ -113,15 +159,11 @@ export default function App() {
     }
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────
-
   async function handleSettingsSaved() {
     const s = await getSettings()
     setSettings(s)
     scheduleAutoRefresh(s.refresh_interval)
   }
-
-  // ── Onboarding ────────────────────────────────────────────────────────────
 
   async function handleOnboardingDone() {
     setShowOnboarding(false)
@@ -129,38 +171,42 @@ export default function App() {
     await loadArticles()
   }
 
-  // ── Read state re-render ──────────────────────────────────────────────────
-
   function handleReadChange() {
     forceUpdate(n => n + 1)
   }
-
-  // ── Format last refreshed ─────────────────────────────────────────────────
 
   const lastRefreshedStr = lastRefreshed
     ? lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     : '—'
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div className="layout">
       {/* Navbar */}
       <nav className="navbar">
-        <span className="navbar-brand">📰 <span>RSS</span> Reader</span>
-        <span className="navbar-spacer" />
+        <div className="navbar-brand">
+          <div className="brand-icon">📰</div>
+          <span className="brand-name">Feed<span className="brand-dot">line</span></span>
+        </div>
+        <div className="navbar-spacer" />
         <span className="navbar-meta">Updated {lastRefreshedStr}</span>
         <button
-          className="btn btn-ghost"
-          style={{ color: '#94a3b8', fontSize: '0.8rem' }}
+          className="btn btn-ghost btn-sm"
           onClick={handleRefreshAll}
           disabled={loading}
+          title="Refresh all feeds"
         >
           {loading ? '…' : '↺ Refresh'}
         </button>
         <button
-          className="btn btn-ghost"
-          style={{ color: '#94a3b8' }}
+          className="btn btn-ghost btn-sm"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={{ fontSize: '1rem' }}
+        >
+          {theme === 'dark' ? '☀' : '🌙'}
+        </button>
+        <button
+          className="btn btn-ghost btn-sm"
           onClick={() => setShowSettings(true)}
           title="Settings"
         >
@@ -176,17 +222,21 @@ export default function App() {
         onSavedFiltersChange={async () => setSavedFilters(await getFilters())}
       />
 
-      {/* Body: sidebar + articles */}
+      {/* Body: sidebar + resize + articles + resize + reading pane */}
       <div className="body-area">
         <Sidebar
           feeds={feeds}
           selectedFeedId={selectedFeedId}
           onSelectFeed={handleSelectFeed}
-          onFeedsChanged={async () => {
-            await loadFeeds()
-            await loadArticles()
-          }}
+          onFeedsChanged={async () => { await loadFeeds(); await loadArticles() }}
           readIds={readState.getAll()}
+          style={{ width: sidebarWidth, minWidth: sidebarWidth }}
+        />
+
+        <div
+          className={`resize-handle${draggingHandle === 'sidebar' ? ' dragging' : ''}`}
+          onMouseDown={e => startResize(e, 'sidebar')}
+          title="Drag to resize sidebar"
         />
 
         <ArticleList
@@ -195,7 +245,22 @@ export default function App() {
           filters={filters}
           unreadOnly={filters.unreadOnly}
           favoritesOnly={filters.favoritesOnly}
+          selectedArticleId={selectedArticle?.id}
+          onSelectArticle={setSelectedArticle}
           onReadChange={handleReadChange}
+        />
+
+        <div
+          className={`resize-handle${draggingHandle === 'reading' ? ' dragging' : ''}`}
+          onMouseDown={e => startResize(e, 'reading')}
+          title="Drag to resize reading pane"
+        />
+
+        <ReadingPane
+          article={selectedArticle}
+          onClose={() => setSelectedArticle(null)}
+          onReadChange={handleReadChange}
+          style={{ width: readingWidth, minWidth: readingWidth }}
         />
       </div>
 

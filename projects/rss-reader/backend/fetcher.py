@@ -200,6 +200,43 @@ def fetch_feed(feed_id: str) -> list[dict]:
     return articles
 
 
+# ── Full Article Extraction ────────────────────────────────────────────────────
+
+def extract_article_content(url: str) -> dict:
+    """
+    Fetch a URL and extract the main article body as clean HTML.
+    Uses trafilatura (Mozilla Readability-style extraction).
+    Returns {"html": str, "title": str} or raises ValueError on failure.
+    """
+    try:
+        import trafilatura
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            # Fall back to requests if trafilatura's fetcher fails
+            resp = _fetch(url)
+            resp.raise_for_status()
+            downloaded = resp.text
+
+        html = trafilatura.extract(
+            downloaded,
+            output_format="html",
+            include_images=True,
+            include_links=True,
+            include_tables=True,
+            no_fallback=False,
+        )
+        if not html:
+            raise ValueError("No article content could be extracted.")
+
+        return {"html": html}
+    except ImportError:
+        raise ValueError("trafilatura not installed. Run: pip install trafilatura")
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Could not extract article content: {e}")
+
+
 def fetch_all_feeds() -> list[dict]:
     """Fetch articles from all active feeds. Returns merged, date-sorted list."""
     feeds = storage.get_feeds()

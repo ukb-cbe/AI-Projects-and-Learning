@@ -17,3 +17,5 @@ export const markOnboardingDone = () => api.post('/settings/onboarding-done').th
 export const getFilters = () => api.get('/filters').then(r => r.data)
 export const saveFilter = (data) => api.post('/filters', data).then(r => r.data)
 export const removeFilter = (id) => api.delete(`/filters/${id}`).then(r => r.data)
+export const getArticleContent = (url) =>
+  api.get('/article-content', { params: { url } }).then(r => r.data)
