@@ -1,4 +1,4 @@
-# NSE Stock Alert — WhatsApp
+# NSE Stock Alert — Email
 
 Get hourly (or scheduled) email alerts for NSE stock prices. Fully configurable via a local web UI.
 
