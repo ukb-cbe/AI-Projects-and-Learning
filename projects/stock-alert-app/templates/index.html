@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSE Stock Alerts</title>
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  />
+  <style>
+    body { background: #f5f7fa; }
+    .navbar { background: #1a1a2e; }
+    .status-badge { font-size: 0.8rem; }
+    #searchResults {
+      position: absolute;
+      z-index: 1000;
+      width: 100%;
+      max-height: 260px;
+      overflow-y: auto;
+      border: 1px solid #dee2e6;
+      border-radius: 0 0 8px 8px;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,.12);
+    }
+    .search-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .search-item:hover { background: #f0f4ff; }
+    .search-item .sym { font-weight: 600; font-size: 0.85rem; color: #0d6efd; }
+    .times-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #e9f0ff; border-radius: 20px;
+      padding: 3px 10px; margin: 3px; font-size: 0.85rem;
+    }
+    .times-tag button { border: none; background: none; font-size: 1rem; line-height: 1; cursor: pointer; }
+    #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; }
+    .paused-row { opacity: 0.45; }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-dark px-3 py-2">
+  <span class="navbar-brand fw-bold fs-5">📊 NSE Stock Alerts</span>
+  {% if cfg.opted_in %}
+    <span class="badge bg-success status-badge">● Alerts Active</span>
+  {% else %}
+    <span class="badge bg-secondary status-badge">● Alerts Paused</span>
+  {% endif %}
+</nav>
+
+<div class="container py-4" style="max-width: 760px;">
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Top action bar -->
+  <div class="d-flex gap-2 mb-4 flex-wrap">
+    <button class="btn btn-primary" onclick="sendNow()">
+      🔔 Send Alert Now
+    </button>
+    {% if cfg.opted_in %}
+      <button class="btn btn-outline-danger" onclick="toggleOpt(false)" id="optBtn">
+        ⏸ Pause All Alerts
+      </button>
+    {% else %}
+      <button class="btn btn-outline-success" onclick="toggleOpt(true)" id="optBtn">
+        ▶ Resume Alerts
+      </button>
+    {% endif %}
+  </div>
+
+  <!-- ── Tabs ── -->
+  <ul class="nav nav-tabs mb-3" id="mainTab">
+    <li class="nav-item">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-stocks">
+        My Stocks
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-settings">
+        ⚙️ Settings
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+    <!-- ── STOCKS TAB ── -->
+    <div class="tab-pane fade show active" id="tab-stocks">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Search & Add Stocks</h6>
+          <div class="position-relative">
+            <input
+              type="text"
+              id="searchInput"
+              class="form-control"
+              placeholder="Type company name or symbol (e.g. Reliance, TCS…)"
+              autocomplete="off"
+            />
+            <div id="searchResults" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Company</th>
+                <th class="text-center" style="width:100px;">Status</th>
+                <th class="text-center" style="width:80px;">Remove</th>
+              </tr>
+            </thead>
+            <tbody id="stocksBody">
+              {% for s in stocks %}
+              <tr id="row-{{ s.id }}" class="{{ '' if s.active else 'paused-row' }}">
+                <td>
+                  <div class="fw-semibold">{{ s.display_name }}</div>
+                  <small class="text-muted">{{ s.symbol }}</small>
+                </td>
+                <td class="text-center">
+                  <button
+                    class="btn btn-sm {{ 'btn-success' if s.active else 'btn-outline-secondary' }}"
+                    onclick="toggleStock({{ s.id }}, this)"
+                    title="{{ 'Pause' if s.active else 'Resume' }}"
+                  >
+                    {{ '● On' if s.active else '○ Off' }}
+                  </button>
+                </td>
+                <td class="text-center">
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    onclick="removeStock('{{ s.symbol }}', {{ s.id }})"
+                  >✕</button>
+                </td>
+              </tr>
+              {% else %}
+              <tr id="empty-row">
+                <td colspan="3" class="text-center text-muted py-4">
+                  No stocks added yet. Search above to add some.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS TAB ── -->
+    <div class="tab-pane fade" id="tab-settings">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Alert Settings</h6>
+
+          <!-- Email address -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold">Alert Email Address</label>
+            <input
+              type="email"
+              id="emailTo"
+              class="form-control"
+              placeholder="you@gmail.com"
+              value="{{ cfg.email_to }}"
+            />
+            <div class="form-text">Alerts will be sent to this address.</div>
+          </div>
+
+          <!-- Schedule mode -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Alert Frequency</label>
+            <div class="d-flex gap-4">
+              <div class="form-check">
+                <input
+                  class="form-check-input" type="radio"
+                  name="scheduleMode" id="modeInterval" value="interval"
+                  onchange="toggleMode()"
+                  {{ 'checked' if cfg.schedule_mode == 'interval' else '' }}
+                />
+                <label class="form-check-label" for="modeInterval">Every N hours</label>
+              </div>
+              <div class="form-check">
+                <input
+                  class="form-check-input" type="radio"
+                  name="scheduleMode" id="modeTimes" value="specific_times"
+                  onchange="toggleMode()"
+                  {{ 'checked' if cfg.schedule_mode == 'specific_times' else '' }}
+                />
+                <label class="form-check-label" for="modeTimes">At specific times</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interval picker -->
+          <div id="intervalSection" class="mb-3">
+            <label class="form-label">Interval</label>
+            <select id="intervalHours" class="form-select" style="max-width:200px;">
+              {% for val, label in [('0.5','Every 30 minutes'), ('1','Every 1 hour'), ('2','Every 2 hours'), ('3','Every 3 hours'), ('4','Every 4 hours'), ('6','Every 6 hours'), ('8','Every 8 hours')] %}
+              <option value="{{ val }}" {{ 'selected' if cfg.interval_hours == val|float else '' }}>
+                {{ label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Times picker -->
+          <div id="timesSection" class="mb-3" style="display:none;">
+            <label class="form-label">Times (IST)</label>
+            <div id="timesTags" class="mb-2">
+              {% for t in cfg.specific_times %}
+              <span class="times-tag" data-time="{{ t }}">
+                {{ t }}
+                <button onclick="removeTime(this)" title="Remove">×</button>
+              </span>
+              {% endfor %}
+            </div>
+            <div class="input-group" style="max-width:200px;">
+              <input type="time" id="newTimeInput" class="form-control" />
+              <button class="btn btn-outline-primary" onclick="addTime()">+ Add</button>
+            </div>
+          </div>
+
+          <!-- Market hours only -->
+          <div class="mb-4">
+            <div class="form-check form-switch">
+              <input
+                class="form-check-input" type="checkbox"
+                id="marketHoursOnly" role="switch"
+                {{ 'checked' if cfg.market_hours_only else '' }}
+              />
+              <label class="form-check-label" for="marketHoursOnly">
+                <strong>Market hours only</strong>
+                <span class="text-muted"> — skip alerts outside NSE hours (Mon–Fri, 9:15–15:30 IST)</span>
+              </label>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+        </div>
+      </div>
+
+      <!-- Opt-out section -->
+      <div class="card shadow-sm mt-3 border-warning">
+        <div class="card-body">
+          <h6 class="card-title text-warning">🔕 Manage Alerts</h6>
+          <p class="text-muted small mb-3">
+            Pause alerts if they get too annoying. You can resume any time.
+            Your stocks and settings are kept.
+          </p>
+          <div class="d-flex gap-2" id="optSection">
+            {% if cfg.opted_in %}
+            <button class="btn btn-warning" onclick="toggleOpt(false)">⏸ Pause All Alerts</button>
+            {% else %}
+            <button class="btn btn-success" onclick="toggleOpt(true)">▶ Resume Alerts</button>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Gmail setup hint -->
+      <div class="alert alert-info mt-3 small">
+        <strong>Gmail users:</strong> Use an <strong>App Password</strong> (not your regular password).
+        Generate one at <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a>
+        (requires 2-Step Verification to be enabled). Set <code>SMTP_USER</code> and <code>SMTP_PASSWORD</code> in your <code>.env</code> file,
+        then click "Send Alert Now" to test.
+      </div>
+    </div>
+    <!-- end settings tab -->
+
+  </div><!-- end tab-content -->
+</div><!-- end container -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Toast helper ──────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} shadow py-2 px-3 mb-2`;
+  el.style.cssText = 'min-width:260px;max-width:380px;animation:fadein .2s';
+  el.textContent = msg;
+  document.getElementById('toast-container').prepend(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ── Stock search ──────────────────────────────────────
+let searchTimer;
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = searchInput.value.trim();
+  if (q.length < 2) { searchResults.style.display = 'none'; return; }
+  searchTimer = setTimeout(() => doSearch(q), 280);
+});
+
+searchInput.addEventListener('blur', () => {
+  setTimeout(() => { searchResults.style.display = 'none'; }, 200);
+});
+
+async function doSearch(q) {
+  const res = await fetch('/api/search?q=' + encodeURIComponent(q));
+  const items = await res.json();
+  if (!items.length) { searchResults.style.display = 'none'; return; }
+  searchResults.innerHTML = items.map(s =>
+    `<div class="search-item" onmousedown="addStock('${s.symbol}','${escHtml(s.name)}')">
+       <span class="sym">${s.symbol}</span> &nbsp; ${escHtml(s.name)}
+     </div>`
+  ).join('');
+  searchResults.style.display = 'block';
+}
+
+async function addStock(symbol, name) {
+  searchResults.style.display = 'none';
+  searchInput.value = '';
+  const res = await fetch('/stocks/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({symbol, name})
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error || 'Could not add stock', 'danger'); return; }
+  toast(`${name} added!`);
+  reloadStocks();
+}
+
+async function removeStock(symbol, id) {
+  if (!confirm(`Remove ${symbol} from your list?`)) return;
+  await fetch(`/stocks/${symbol}`, {method: 'DELETE'});
+  document.getElementById(`row-${id}`)?.remove();
+  if (!document.querySelector('#stocksBody tr[id^="row-"]')) {
+    document.getElementById('stocksBody').innerHTML =
+      '<tr id="empty-row"><td colspan="3" class="text-center text-muted py-4">No stocks added yet. Search above to add some.</td></tr>';
+  }
+}
+
+async function toggleStock(id, btn) {
+  const res = await fetch(`/stocks/${id}/toggle`, {method: 'POST'});
+  if (!res.ok) return;
+  const row = document.getElementById(`row-${id}`);
+  const isOn = btn.classList.contains('btn-success');
+  btn.classList.toggle('btn-success', !isOn);
+  btn.classList.toggle('btn-outline-secondary', isOn);
+  btn.textContent = isOn ? '○ Off' : '● On';
+  row.classList.toggle('paused-row', isOn);
+}
+
+async function reloadStocks() {
+  const res = await fetch('/api/stocks');
+  const stocks = await res.json();
+  const tbody = document.getElementById('stocksBody');
+  if (!stocks.length) {
+    tbody.innerHTML = '<tr id="empty-row"><td colspan="3" class="text-center text-muted py-4">No stocks added yet. Search above to add some.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = stocks.map(s => `
+    <tr id="row-${s.id}" class="${s.active ? '' : 'paused-row'}">
+      <td>
+        <div class="fw-semibold">${escHtml(s.display_name)}</div>
+        <small class="text-muted">${s.symbol}</small>
+      </td>
+      <td class="text-center">
+        <button class="btn btn-sm ${s.active ? 'btn-success' : 'btn-outline-secondary'}"
+          onclick="toggleStock(${s.id}, this)">
+          ${s.active ? '● On' : '○ Off'}
+        </button>
+      </td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-outline-danger" onclick="removeStock('${s.symbol}', ${s.id})">✕</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── Send now ──────────────────────────────────────────
+async function sendNow() {
+  const res = await fetch('/alerts/send-now', {method: 'POST'});
+  const data = await res.json();
+  if (res.ok) toast(data.message || 'Alert sent!');
+  else toast(data.error || 'Failed to send', 'danger');
+}
+
+// ── Opt in/out ────────────────────────────────────────
+async function toggleOpt(enable) {
+  const url = enable ? '/alerts/optin' : '/alerts/optout';
+  const res = await fetch(url, {method: 'POST'});
+  const data = await res.json();
+  if (!res.ok) { toast('Error', 'danger'); return; }
+  toast(enable ? 'Alerts resumed!' : 'Alerts paused.');
+  // Update badge and buttons without full reload
+  const badge = document.querySelector('.navbar .badge');
+  if (badge) {
+    badge.className = `badge status-badge ${enable ? 'bg-success' : 'bg-secondary'}`;
+    badge.textContent = enable ? '● Alerts Active' : '● Alerts Paused';
+  }
+  document.querySelectorAll('#optBtn, #optSection button').forEach(btn => {
+    btn.outerHTML = enable
+      ? `<button class="btn btn-outline-danger" onclick="toggleOpt(false)" id="optBtn">⏸ Pause All Alerts</button>`
+      : `<button class="btn btn-outline-success" onclick="toggleOpt(true)" id="optBtn">▶ Resume Alerts</button>`;
+  });
+}
+
+// ── Settings ──────────────────────────────────────────
+function toggleMode() {
+  const mode = document.querySelector('input[name="scheduleMode"]:checked').value;
+  document.getElementById('intervalSection').style.display = mode === 'interval' ? '' : 'none';
+  document.getElementById('timesSection').style.display    = mode === 'specific_times' ? '' : 'none';
+}
+
+function addTime() {
+  const input = document.getElementById('newTimeInput');
+  const val = input.value;
+  if (!val) return;
+  const existing = [...document.querySelectorAll('#timesTags .times-tag')].map(t => t.dataset.time);
+  if (existing.includes(val)) { toast('Time already added', 'warning'); return; }
+  const tag = document.createElement('span');
+  tag.className = 'times-tag'; tag.dataset.time = val;
+  tag.innerHTML = `${val} <button onclick="removeTime(this)" title="Remove">×</button>`;
+  document.getElementById('timesTags').appendChild(tag);
+  input.value = '';
+}
+
+function removeTime(btn) {
+  btn.closest('.times-tag').remove();
+}
+
+async function saveSettings() {
+  const email  = document.getElementById('emailTo').value.trim();
+  const mode   = document.querySelector('input[name="scheduleMode"]:checked').value;
+  const hours  = parseFloat(document.getElementById('intervalHours').value);
+  const times  = [...document.querySelectorAll('#timesTags .times-tag')].map(t => t.dataset.time);
+  const market = document.getElementById('marketHoursOnly').checked;
+
+  if (!email) { toast('Please enter your email address', 'warning'); return; }
+
+  const res = await fetch('/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      email_to: email,
+      schedule_mode: mode,
+      interval_hours: hours,
+      specific_times: times,
+      market_hours_only: market
+    })
+  });
+  const data = await res.json();
+  if (res.ok) toast(data.message || 'Settings saved!');
+  else toast(data.error || 'Failed to save', 'danger');
+}
+
+// ── Init ─────────────────────────────────────────────
+toggleMode(); // apply correct section visibility on load
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+flask>=3.0
+yfinance>=0.2
+apscheduler>=3.10,<4.0
+sqlalchemy>=2.0
+python-dotenv>=1.0
+pytz>=2024.1
